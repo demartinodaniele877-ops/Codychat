@@ -23,6 +23,7 @@ $wss = isset($_GET['wss']) ? $_GET['wss'] : '';
 </head>
 <body>
   <div class="ctrl">
+    <button class="btn" id="startCam">Avvia</button>
     <button class="btn" onclick="window.parent.postMessage('endCall', window.origin)">Chiudi</button>
   </div>
   <div id="app">
@@ -52,6 +53,27 @@ $wss = isset($_GET['wss']) ? $_GET['wss'] : '';
       p.catch(()=>{ video.muted = true; video.play().catch(()=>{}); });
     }
   }
+
+  // Start flow on explicit user gesture
+  let started = false;
+  async function start(){
+    try{
+      if(started) return; started = true;
+      // Preview local cam immediately when producing
+      if(mode === 'produce' && !localStream){
+        localStream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+        video.srcObject = localStream;
+        ensureAutoplay();
+      }
+    }catch(e){ console.error('pre-start getUserMedia error', e); }
+    await run();
+  }
+  window.startCam = start;
+  const startBtn = document.getElementById('startCam');
+  if(startBtn){ startBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); start(); }); }
 
   function protooUrl(){
     const url = new URL(wss);
@@ -189,7 +211,7 @@ $wss = isset($_GET['wss']) ? $_GET['wss'] : '';
     peer.on('close', () => console.warn('protoo closed'));
   }
 
-  run();
+  // run(); // avviare manualmente con il tasto "Avvia"
   </script>
 </body>
 <scrip></scrip>
