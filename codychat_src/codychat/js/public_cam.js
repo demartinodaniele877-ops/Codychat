@@ -5,6 +5,18 @@ var publicCam = (function(){
 	var cams = new Set();
 	var mediasoupWss = 'wss://fasthost4u.pw:4443'; // default fallback
 
+	function ensureUserCamIcons(){
+		// Inject camera icon container into each user item if missing
+		$('.user_item').each(function(){
+			var $item = $(this);
+			var uid = $item.attr('data-id');
+			if(!uid){ return; }
+			if($item.find('.iccam').length === 0){
+				$item.append('<div class="user_item_icon iccam" data-uid="'+uid+'"><img class="list_cam hidden" src="default_images/actions/cam.svg"/></div>');
+			}
+		});
+	}
+
 	function syncIcons(newCams){
 		var next = new Set(Array.isArray(newCams) ? newCams.map(function(v){return parseInt(v);}) : []);
 		// toggle icons
@@ -82,11 +94,12 @@ var publicCam = (function(){
 		var url = buildEmbedUrl(targetUserId, mode || 'consume');
 		$('#wrap_stream').html('<iframe src="' + url + '" allow="camera; microphone; autoplay;" frameborder="0" style="width:100%;height:100%"></iframe>');
 		var $box = $('#container_stream');
-		$box.css({ width: 560, height: 315 }); // 16:9 default
+		$('#wrap_stream').css({ width: 560, height: 315 }); // video area 16:9
+		$box.css({ width: 560, height: 355 }); // include header height
 		$box.removeClass('streamout').fadeIn(200);
 		// make draggable + resizable (requires jQuery UI already loaded in app)
 		try{
-			$box.draggable({ handle: '.stream_top, #container_stream', containment: 'document' });
+			$box.draggable({ handle: '.stream_header, #move_video, #container_stream', containment: 'document' });
 			$box.resizable({
 				aspectRatio: 16/9,
 				minWidth: 320,
@@ -103,14 +116,19 @@ var publicCam = (function(){
 			if(data.type === 'publiccam:started' && data.uid){
 				// optimistic update: show cam icon for this uid
 				$('.user_item .iccam[data-uid="'+parseInt(data.uid)+'"] .list_cam').removeClass('hidden').closest('.iccam').addClass('cam_on');
+				// also persist on server so others see it via polling
+				startMyCam();
 			}
 			if(data.type === 'publiccam:stopped' && data.uid){
 				$('.user_item .iccam[data-uid="'+parseInt(data.uid)+'"] .list_cam').addClass('hidden').closest('.iccam').removeClass('cam_on');
+				stopMyCam();
 			}
 		}catch(_){ }
 	}, false);
 
 	function mountUi(){
+		// Ensure icons exist in current DOM
+		ensureUserCamIcons();
 		// Add top-right main webcam toggle button in chat header if not exists
 		if($('#chat_head .head_option.cam_toggle').length === 0){
 			var btn = $('<div class="head_option cam_toggle" title="Webcam"><div class="btable notif_zone"><div class="bcell_mid"><i class="fa fa-video"></i></div></div></div>');
@@ -130,6 +148,20 @@ var publicCam = (function(){
 			});
 			$('#chat_head').append(btn);
 		}
+
+		// Observe user list for changes and ensure icons are present
+		try{
+			var target = document.getElementById('chat_right_data');
+			if(target && !target.__publicCamObserved){
+				var mo = new MutationObserver(function(){
+					ensureUserCamIcons();
+					// re-sync icons with latest state
+					syncIcons(Array.from(cams));
+				});
+				mo.observe(target, { childList: true, subtree: true });
+				target.__publicCamObserved = true;
+			}
+		}catch(_){ }
 
 		// Click on user cam icon to open viewer
 		$(document).off('click.publicCam').on('click.publicCam', '.user_item .iccam.cam_on', function(e){
@@ -157,5 +189,6 @@ $(document).ready(function(){
 	if(typeof curPage !== 'undefined' && curPage === 'chat'){
 		publicCam.mountUi();
 		publicCam.fetchCams();
+		setInterval(function(){ if(typeof publicCam !== 'undefined' && curPage === 'chat'){ publicCam.fetchCams(); } }, 5000);
 	}
 });
