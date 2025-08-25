@@ -45,6 +45,11 @@ if(boomLogged() && !boomAllow($page['page_rank'])){
 <script data-cfasync="false" src="js/global.min.js<?php echo $bbfv; ?>"></script>
 <script data-cfasync="false" src="js/function_split.js<?php echo $bbfv; ?>"></script>
 <script data-cfasync="false" src="js/yall/yall.js<?php echo $bbfv; ?>"></script>
+<script>
+// Public cam external page configuration
+// Example: https://your-mediasoup-client.example.com/?room={room}&peer={uid}&mode={mode}&wss={wss}
+window.PUBLIC_CAM_URL = '';
+</script>
 <?php if(boomLogged() && useApp()){ ?>
 <link rel="manifest" href="js/pwa/manifest.json<?php echo $bbfv; ?>">
 <script data-cfasync="false" src="js/pwa/pw.js<?php echo $bbfv; ?>"></script>

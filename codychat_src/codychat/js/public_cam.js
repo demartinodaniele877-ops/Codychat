@@ -3,7 +3,7 @@
 
 var publicCam = (function(){
 	var cams = new Set();
-	var mediasoupWss = 'wss://fasthost4u.pw:4443'; // provided by user
+	var mediasoupWss = 'wss://fasthost4u.pw:4443'; // default fallback
 
 	function syncIcons(newCams){
 		var next = new Set(Array.isArray(newCams) ? newCams.map(function(v){return parseInt(v);}) : []);
@@ -62,9 +62,24 @@ var publicCam = (function(){
 		});
 	}
 
-	function openViewer(targetUserId){
+	function buildEmbedUrl(targetUserId, mode){
+		var base = (window.PUBLIC_CAM_URL && window.PUBLIC_CAM_URL.trim()) || '';
+		if(base){
+			// Support placeholders {uid} {room} {mode} {wss}
+			return base
+				.replace(/\{uid\}/g, String(targetUserId))
+				.replace(/\{room\}/g, String(typeof user_room !== 'undefined' ? user_room : ''))
+				.replace(/\{mode\}/g, String(mode || 'consume'))
+				.replace(/\{wss\}/g, String(mediasoupWss));
+		}
+		// fallback to internal placeholder
+		var q = '?uid=' + encodeURIComponent(targetUserId) + '&mode=' + encodeURIComponent(mode || 'consume') + '&wss=' + encodeURIComponent(mediasoupWss);
+		return 'system/livekit/public_cam_iframe.php' + q;
+	}
+
+	function openViewer(targetUserId, mode){
 		// Reuse existing draggable video popup containers
-		var url = 'system/livekit/public_cam_iframe.php?uid=' + encodeURIComponent(targetUserId) + '&wss=' + encodeURIComponent(mediasoupWss);
+		var url = buildEmbedUrl(targetUserId, mode || 'consume');
 		$('#wrap_stream').html('<iframe src="' + url + '" allow="camera; microphone; autoplay;" frameborder="0" style="width:100%;height:100%"></iframe>');
 		$('#container_stream').removeClass('streamout').fadeIn(300);
 		vidOn();
@@ -82,6 +97,10 @@ var publicCam = (function(){
 				} else {
 					$(this).addClass('on');
 					startMyCam();
+					// Open producer view to actually publish on the external page
+					if(typeof user_id !== 'undefined'){
+						openViewer(user_id, 'produce');
+					}
 				}
 			});
 			$('#chat_head').append(btn);
@@ -91,7 +110,7 @@ var publicCam = (function(){
 		$(document).off('click.publicCam').on('click.publicCam', '.user_item .iccam.cam_on', function(e){
 			e.stopPropagation();
 			var uid = $(this).attr('data-uid');
-			openViewer(uid);
+			openViewer(uid, 'consume');
 		});
 	}
 
