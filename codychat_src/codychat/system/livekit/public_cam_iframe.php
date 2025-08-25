@@ -30,8 +30,8 @@ $wss = isset($_GET['wss']) ? $_GET['wss'] : '';
     <video id="v" playsinline autoplay controls></video>
   </div>
   <script type="module">
-  import * as mediasoupClient from 'https://cdn.jsdelivr.net/npm/mediasoup-client@3/+esm';
-  import * as protooClient   from 'https://cdn.jsdelivr.net/npm/protoo-client@4/+esm';
+  import * as mediasoupClient from 'https://esm.sh/mediasoup-client@3?bundle';
+  import * as protooClient   from 'https://esm.sh/protoo-client@4?bundle';
 
   const params = new URLSearchParams(location.search);
   const uid   = params.get('uid') || String(Math.random()).slice(2);
