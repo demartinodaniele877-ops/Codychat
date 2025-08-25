@@ -34,12 +34,24 @@ $wss = isset($_GET['wss']) ? $_GET['wss'] : '';
 
   const params = new URLSearchParams(location.search);
   const uid   = params.get('uid') || String(Math.random()).slice(2);
-  const room  = params.get('room') || 'public-' + (params.get('room') || 'default');
+  const room  = params.get('room') || ('public-' + uid);
   const wss   = params.get('wss') || '';
   const mode  = params.get('mode') || 'consume'; // 'produce' | 'consume'
 
   const video = document.getElementById('v');
   let device;
+  let localStream;
+
+  // Improve autoplay behavior on mobile/desktop
+  video.muted = (mode === 'produce');
+  video.playsInline = true;
+
+  function ensureAutoplay(){
+    const p = video.play();
+    if(p && typeof p.catch === 'function'){
+      p.catch(()=>{ video.muted = true; video.play().catch(()=>{}); });
+    }
+  }
 
   function protooUrl(){
     const url = new URL(wss);
@@ -61,6 +73,20 @@ $wss = isset($_GET['wss']) ? $_GET['wss'] : '';
   }
 
   async function produceFlow(peer){
+    // Get local media first and show preview immediately
+    try{
+      if(!localStream){
+        localStream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+      }
+      if(localStream){
+        video.srcObject = localStream;
+        ensureAutoplay();
+      }
+    }catch(e){ console.error('getUserMedia error', e); }
+
     const transportInfo = await peer.request('createWebRtcTransport', {
       forceTcp: false,
       producing: true,
@@ -83,8 +109,12 @@ $wss = isset($_GET['wss']) ? $_GET['wss'] : '';
       }catch (e){ errback(e); }
     });
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: { width: { ideal: 1280 }, height: { ideal: 720 } } });
+    const stream = localStream || await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: { width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
     video.srcObject = stream;
+    ensureAutoplay();
     const trackV = stream.getVideoTracks()[0];
     const trackA = stream.getAudioTracks()[0];
     if(trackV) await sendTransport.produce({ track: trackV });
@@ -121,6 +151,7 @@ $wss = isset($_GET['wss']) ? $_GET['wss'] : '';
         const cur = video.srcObject instanceof MediaStream ? video.srcObject : new MediaStream();
         cur.addTrack(consumer.track);
         video.srcObject = cur;
+        ensureAutoplay();
         await peer.request('resumeConsumer', { consumerId: id }).catch(async ()=>{
           // some servers use 'resume'
           try{ await peer.request('resume', { consumerId: id }); }catch(_){ }
