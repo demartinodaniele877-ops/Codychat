@@ -135,6 +135,7 @@ $wss = isset($_GET['wss']) ? $_GET['wss'] : '';
     const trackA = stream.getAudioTracks()[0];
     if(trackV) await sendTransport.produce({ track: trackV });
     if(trackA) await sendTransport.produce({ track: trackA });
+    try{ window.parent && window.parent.postMessage({ type: 'publiccam:started', uid }, '*'); }catch(_){ }
   }
 
   async function consumeFlow(peer){
@@ -204,6 +205,9 @@ $wss = isset($_GET['wss']) ? $_GET['wss'] : '';
     peer.on('disconnected', () => console.warn('protoo disconnected'));
     peer.on('close', () => console.warn('protoo closed'));
   }
+
+  // Notify stop on unload/close
+  try{ window.addEventListener('beforeunload', ()=>{ try{ window.parent.postMessage({ type: 'publiccam:stopped', uid }, '*'); }catch(_){ } }); }catch(_){ }
 
   // Auto-start as soon as possible
   start();

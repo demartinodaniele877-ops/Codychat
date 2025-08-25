@@ -96,6 +96,20 @@ var publicCam = (function(){
 		vidOn();
 	}
 
+	// Listen to iframe messages to update icons instantly
+	window.addEventListener('message', function(ev){
+		try{
+			var data = ev.data || {};
+			if(data.type === 'publiccam:started' && data.uid){
+				// optimistic update: show cam icon for this uid
+				$('.user_item .iccam[data-uid="'+parseInt(data.uid)+'"] .list_cam').removeClass('hidden').closest('.iccam').addClass('cam_on');
+			}
+			if(data.type === 'publiccam:stopped' && data.uid){
+				$('.user_item .iccam[data-uid="'+parseInt(data.uid)+'"] .list_cam').addClass('hidden').closest('.iccam').removeClass('cam_on');
+			}
+		}catch(_){ }
+	}, false);
+
 	function mountUi(){
 		// Add top-right main webcam toggle button in chat header if not exists
 		if($('#chat_head .head_option.cam_toggle').length === 0){
