@@ -81,7 +81,18 @@ var publicCam = (function(){
 		// Reuse existing draggable video popup containers
 		var url = buildEmbedUrl(targetUserId, mode || 'consume');
 		$('#wrap_stream').html('<iframe src="' + url + '" allow="camera; microphone; autoplay;" frameborder="0" style="width:100%;height:100%"></iframe>');
-		$('#container_stream').removeClass('streamout').fadeIn(300);
+		var $box = $('#container_stream');
+		$box.css({ width: 560, height: 315 }); // 16:9 default
+		$box.removeClass('streamout').fadeIn(200);
+		// make draggable + resizable (requires jQuery UI already loaded in app)
+		try{
+			$box.draggable({ handle: '.stream_top, #container_stream', containment: 'document' });
+			$box.resizable({
+				aspectRatio: 16/9,
+				minWidth: 320,
+				minHeight: 180
+			});
+		}catch(_){ /* jQuery UI should be present */ }
 		vidOn();
 	}
 
