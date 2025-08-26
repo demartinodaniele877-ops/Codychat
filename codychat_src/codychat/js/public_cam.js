@@ -86,19 +86,65 @@ var publicCam = (function(){
 
 	function buildEmbedUrl(targetUserId, mode){
 		var base = (window.PUBLIC_CAM_URL && window.PUBLIC_CAM_URL.trim()) || '';
+		var roomName = 'public-' + String(targetUserId);
 		if(base){
 			return base
 				.replace(/\{uid\}/g, String(targetUserId))
-				.replace(/\{room\}/g, String(typeof user_room !== 'undefined' ? user_room : ''))
+				.replace(/\{room\}/g, roomName)
 				.replace(/\{mode\}/g, String(mode || 'consume'))
 				.replace(/\{wss\}/g, String(mediasoupWss));
 		}
-		var q = '?uid=' + encodeURIComponent(targetUserId) + '&mode=' + encodeURIComponent(mode || 'consume') + '&wss=' + encodeURIComponent(mediasoupWss);
+		var q = '?uid=' + encodeURIComponent(targetUserId) + '&mode=' + encodeURIComponent(mode || 'consume') + '&wss=' + encodeURIComponent(mediasoupWss) + '&room=' + encodeURIComponent(roomName);
 		return 'system/livekit/public_cam_iframe.php' + q;
+	}
+
+	function ensureViewerBox(){
+		var $v = $('#container_stream_view');
+		if($v.length){ return $v; }
+		var html = ''+
+		'<div id="container_stream_view" class="streamers vidstream background_stream">'+
+		'	<div class="btable stream_header">'+
+		'		<div id="move_video_view" class="bcell_mid"></div>'+
+		'		<div class="bcell_mid vidopt viewer_close"><i class="fa fa-times"></i></div>'+
+		'	</div>'+
+		'	<div id="wrap_stream_view"></div>'+
+		'</div>';
+		$('body').append(html);
+		var $box = $('#container_stream_view');
+		try{
+			$box.draggable({ handle: '.stream_header, #container_stream_view', containment: 'document' });
+			$box.resizable({ aspectRatio: 16/9, minWidth: 320, minHeight: 180 });
+		}catch(_){ }
+		$(document).off('click.publicCamViewerClose').on('click.publicCamViewerClose', '#container_stream_view .viewer_close', function(){
+			$('#wrap_stream_view').empty();
+			$('#container_stream_view').fadeOut(150, function(){ $(this).remove(); });
+		});
+		return $box;
 	}
 
 	function openViewer(targetUserId, mode){
 		var m = mode || 'consume';
+		// If I am producing my own cam, open a separate viewer box for others
+		if(m !== 'produce' && isCamOn){
+			var $vbox = ensureViewerBox();
+			var alreadyV = $('#wrap_stream_view iframe').attr('src') || '';
+			var wantV = 'uid='+encodeURIComponent(targetUserId)+'&mode='+m;
+			if (alreadyV && alreadyV.indexOf(wantV) !== -1){
+				$vbox.removeClass('streamout').fadeIn(150);
+				return;
+			}
+			$('#wrap_stream_view').empty();
+			$('#wrap_stream_view').addClass('publiccam-wrap');
+			var urlv = buildEmbedUrl(targetUserId, m);
+			$('#wrap_stream_view').html('<iframe src="' + urlv + '" allow="camera; microphone; autoplay;" frameborder="0" style="width:100%;height:100%"></iframe>');
+			$('#wrap_stream_view').children(':not(iframe)').remove();
+			try{ var wrv = document.getElementById('wrap_stream_view'); if (wrv && !wrv.__publicCamObs){ wrv.__publicCamObs = new MutationObserver(function(){ $('#wrap_stream_view').children('video,audio').remove(); }); wrv.__publicCamObs.observe(wrv, { childList: true }); } }catch(_){ }
+			$('#wrap_stream_view').css({ width: 480, height: 270 });
+			$vbox.css({ width: 480, height: 310 }).removeClass('streamout').fadeIn(150);
+			return;
+		}
+
+		// Default: use the main stream box
 		var already = $('#wrap_stream iframe').attr('src') || '';
 		if (already && already.indexOf('uid='+encodeURIComponent(targetUserId)) !== -1 && already.indexOf('mode='+m) !== -1){
 			$('#container_stream').removeClass('streamout').fadeIn(200);
