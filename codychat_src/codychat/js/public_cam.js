@@ -86,7 +86,8 @@ var publicCam = (function(){
 
 	function buildEmbedUrl(targetUserId, mode){
 		var base = (window.PUBLIC_CAM_URL && window.PUBLIC_CAM_URL.trim()) || '';
-		var roomName = 'public-' + String(targetUserId);
+		// Use the same mediasoup room for all peers in this chat room
+		var roomName = 'public-room-' + String(typeof user_room !== 'undefined' ? user_room : '0');
 		if(base){
 			return base
 				.replace(/\{uid\}/g, String(targetUserId))
@@ -94,7 +95,10 @@ var publicCam = (function(){
 				.replace(/\{mode\}/g, String(mode || 'consume'))
 				.replace(/\{wss\}/g, String(mediasoupWss));
 		}
-		var q = '?uid=' + encodeURIComponent(targetUserId) + '&mode=' + encodeURIComponent(mode || 'consume') + '&wss=' + encodeURIComponent(mediasoupWss) + '&room=' + encodeURIComponent(roomName);
+		var q = '?uid=' + encodeURIComponent(targetUserId)
+			+ '&mode=' + encodeURIComponent(mode || 'consume')
+			+ '&wss=' + encodeURIComponent(mediasoupWss)
+			+ '&room=' + encodeURIComponent(roomName);
 		return 'system/livekit/public_cam_iframe.php' + q;
 	}
 
@@ -111,6 +115,8 @@ var publicCam = (function(){
 		'</div>';
 		$('body').append(html);
 		var $box = $('#container_stream_view');
+		$box.addClass('publiccam-box');
+		$box.css({ position: 'fixed', top: '80px', left: '80px', width: 480, height: 310, 'z-index': 10000, display: 'none' });
 		try{
 			$box.draggable({ handle: '.stream_header, #container_stream_view', containment: 'document' });
 			$box.resizable({ aspectRatio: 16/9, minWidth: 320, minHeight: 180 });
@@ -124,23 +130,30 @@ var publicCam = (function(){
 
 	function openViewer(targetUserId, mode){
 		var m = mode || 'consume';
-		// If I am producing my own cam, open a separate viewer box for others
-		if(m !== 'produce' && isCamOn){
+		// Always use a dedicated viewer box for consuming other users
+		if(m !== 'produce'){
 			var $vbox = ensureViewerBox();
 			var alreadyV = $('#wrap_stream_view iframe').attr('src') || '';
 			var wantV = 'uid='+encodeURIComponent(targetUserId)+'&mode='+m;
 			if (alreadyV && alreadyV.indexOf(wantV) !== -1){
-				$vbox.removeClass('streamout').fadeIn(150);
+				$vbox.stop(true, true).fadeIn(150);
 				return;
 			}
-			$('#wrap_stream_view').empty();
-			$('#wrap_stream_view').addClass('publiccam-wrap');
+			$('#wrap_stream_view').empty().addClass('publiccam-wrap');
 			var urlv = buildEmbedUrl(targetUserId, m);
 			$('#wrap_stream_view').html('<iframe src="' + urlv + '" allow="camera; microphone; autoplay;" frameborder="0" style="width:100%;height:100%"></iframe>');
 			$('#wrap_stream_view').children(':not(iframe)').remove();
-			try{ var wrv = document.getElementById('wrap_stream_view'); if (wrv && !wrv.__publicCamObs){ wrv.__publicCamObs = new MutationObserver(function(){ $('#wrap_stream_view').children('video,audio').remove(); }); wrv.__publicCamObs.observe(wrv, { childList: true }); } }catch(_){ }
+			try{
+				var wrv = document.getElementById('wrap_stream_view');
+				if (wrv && !wrv.__publicCamObs){
+					wrv.__publicCamObs = new MutationObserver(function(){
+						$('#wrap_stream_view').children('video,audio').remove();
+					});
+					wrv.__publicCamObs.observe(wrv, { childList: true });
+				}
+			}catch(_){ }
 			$('#wrap_stream_view').css({ width: 480, height: 270 });
-			$vbox.css({ width: 480, height: 310 }).removeClass('streamout').fadeIn(150);
+			$vbox.stop(true, true).fadeIn(150);
 			return;
 		}
 
@@ -150,14 +163,21 @@ var publicCam = (function(){
 			$('#container_stream').removeClass('streamout').fadeIn(200);
 			return;
 		}
-		$('#wrap_stream').empty();
-		$('#wrap_stream').addClass('publiccam-wrap');
+		$('#wrap_stream').empty().addClass('publiccam-wrap');
 		$('#wrap_stream_audio').empty();
 		$('#container_stream_audio').hide().addClass('streamout');
 		var url = buildEmbedUrl(targetUserId, m);
 		$('#wrap_stream').html('<iframe src="' + url + '" allow="camera; microphone; autoplay;" frameborder="0" style="width:100%;height:100%"></iframe>');
 		$('#wrap_stream').children(':not(iframe)').remove();
-		try{ var wr = document.getElementById('wrap_stream'); if (wr && !wr.__publicCamObs){ wr.__publicCamObs = new MutationObserver(function(){ $('#wrap_stream').children('video,audio').remove(); }); wr.__publicCamObs.observe(wr, { childList: true }); } }catch(_){ }
+		try{
+			var wr = document.getElementById('wrap_stream');
+			if (wr && !wr.__publicCamObs){
+				wr.__publicCamObs = new MutationObserver(function(){
+					$('#wrap_stream').children('video,audio').remove();
+				});
+				wr.__publicCamObs.observe(wr, { childList: true });
+			}
+		}catch(_){ }
 		var $box = $('#container_stream');
 		$box.addClass('publiccam-box');
 		$('#wrap_stream').css({ width: 560, height: 315 });
