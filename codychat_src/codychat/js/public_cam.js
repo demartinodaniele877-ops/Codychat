@@ -43,7 +43,7 @@ var publicCam = (function(){
 			type: 'post',
 			cache: false,
 			dataType: 'json',
-			data: { get_public_cams: 1 },
+			data: { get_public_cams: 1, token: (typeof utk !== 'undefined' ? utk : undefined) },
 			success: function(resp){
 				if(resp && resp.code === 1){
 					ensureUserCamIcons();
@@ -63,7 +63,7 @@ var publicCam = (function(){
 			type: 'post',
 			cache: false,
 			dataType: 'json',
-			data: { start_public_cam: 1 },
+			data: { start_public_cam: 1, token: (typeof utk !== 'undefined' ? utk : undefined) },
 			success: function(){ persistedCam = true; fetchCams(); },
 			error: function(){ persistedCam = false; }
 		});
@@ -79,7 +79,7 @@ var publicCam = (function(){
 			type: 'post',
 			cache: false,
 			dataType: 'json',
-			data: { stop_public_cam: 1 },
+			data: { stop_public_cam: 1, token: (typeof utk !== 'undefined' ? utk : undefined) },
 			success: function(){ persistedCam = false; fetchCams(); }
 		});
 	}
