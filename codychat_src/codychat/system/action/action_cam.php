@@ -10,6 +10,9 @@ function cams_key($roomId){
 function cams_has_redis(){
 	return function_exists('redisGetObject') && function_exists('redisSetObject');
 }
+function cams_store_name(){
+	return cams_has_redis() ? 'redis' : 'db';
+}
 
 // MySQL fallback helpers (table boom_room_cams)
 function cams_db_ensure(){
@@ -84,46 +87,46 @@ header('Content-Type: application/json; charset=utf-8');
 if(isset($_POST['cam_whoami'])){
 	$uid = isset($data['user_id']) ? (int)$data['user_id'] : 0;
 	$rid = isset($data['user_roomid']) ? (int)$data['user_roomid'] : 0;
-	echo json_encode(['code' => 1, 'uid' => $uid, 'room' => $rid]);
+	echo json_encode(['code' => 1, 'uid' => $uid, 'room' => $rid, 'store' => cams_store_name()]);
 	die();
 }
 
 // Start broadcasting webcam publicly in current room
 if(isset($_POST['start_public_cam'])){
 	if(empty($data) || empty($data['user_roomid'])){
-		echo json_encode(['code' => 0, 'cams' => []]);
+		echo json_encode(['code' => 0, 'cams' => [], 'store' => cams_store_name()]);
 		die();
 	}
 	$cams = set_room_cam($data['user_roomid'], $data['user_id'], true);
 	if(function_exists('redisUpdateRoom')){ redisUpdateRoom($data['user_roomid']); }
 	if(function_exists('redisUpdateNotify')){ redisUpdateNotify($data['user_id']); }
-	echo json_encode(['code' => 1, 'cams' => $cams]);
+	echo json_encode(['code' => 1, 'cams' => $cams, 'store' => cams_store_name()]);
 	die();
 }
 
 // Stop broadcasting
 if(isset($_POST['stop_public_cam'])){
 	if(empty($data) || empty($data['user_roomid'])){
-		echo json_encode(['code' => 0, 'cams' => []]);
+		echo json_encode(['code' => 0, 'cams' => [], 'store' => cams_store_name()]);
 		die();
 	}
 	$cams = set_room_cam($data['user_roomid'], $data['user_id'], false);
 	if(function_exists('redisUpdateRoom')){ redisUpdateRoom($data['user_roomid']); }
 	if(function_exists('redisUpdateNotify')){ redisUpdateNotify($data['user_id']); }
-	echo json_encode(['code' => 1, 'cams' => $cams]);
+	echo json_encode(['code' => 1, 'cams' => $cams, 'store' => cams_store_name()]);
 	die();
 }
 
 // List current cams for this room
 if(isset($_POST['get_public_cams'])){
 	if(empty($data) || empty($data['user_roomid'])){
-		echo json_encode(['code' => 0, 'cams' => []]);
+		echo json_encode(['code' => 0, 'cams' => [], 'store' => cams_store_name()]);
 		die();
 	}
 	$cams = get_room_cams($data['user_roomid']);
-	echo json_encode(['code' => 1, 'cams' => $cams]);
+	echo json_encode(['code' => 1, 'cams' => $cams, 'store' => cams_store_name()]);
 	die();
 }
 
-echo json_encode(['code' => 0, 'cams' => []]);
+echo json_encode(['code' => 0, 'cams' => [], 'store' => cams_store_name()]);
 ?>
