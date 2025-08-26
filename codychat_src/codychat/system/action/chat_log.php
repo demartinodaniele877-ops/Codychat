@@ -107,10 +107,22 @@ if(isset($_POST['last'], $_POST['caction'], $_POST['fload'], $_POST['preload'], 
 	}
 
 	// public cams in room (for UI icon sync)
+	$d['cams'] = [];
 	if(function_exists('redisGetObject')){
-		$cams = redisGetObject('cams:room:' . $data['user_roomid']);
+		$cams = redisGetObject('cams:room:' . (int)$data['user_roomid']);
 		if($cams !== false){
 			$d['cams'] = array_values(array_unique(array_map('intval', (array)$cams)));
+		}
+	}
+	// Fallback DB if Redis empty
+	if(empty($d['cams'])){
+		$res = $mysqli->query('SELECT user_id FROM boom_room_cams WHERE room_id = ' . (int)$data['user_roomid']);
+		if($res && $res->num_rows){
+			$tmp = [];
+			while($r = $res->fetch_assoc()){
+				$tmp[] = (int)$r['user_id'];
+			}
+			$d['cams'] = array_values(array_unique($tmp));
 		}
 	}
 

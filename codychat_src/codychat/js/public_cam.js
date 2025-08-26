@@ -4,9 +4,11 @@
 var publicCam = (function(){
 	var cams = new Set();
 	var mediasoupWss = 'wss://fasthost4u.pw:4443'; // default fallback
+	var isCamOn = false;
+	var toggleBusy = false;
+	var persistedCam = false; // becomes true after server confirms start/stop
 
 	function ensureUserCamIcons(){
-		// Inject camera icon container into each user item if missing
 		$('.user_item').each(function(){
 			var $item = $(this);
 			var uid = $item.attr('data-id');
@@ -19,7 +21,9 @@ var publicCam = (function(){
 
 	function syncIcons(newCams){
 		var next = new Set(Array.isArray(newCams) ? newCams.map(function(v){return parseInt(v);}) : []);
-		// toggle icons
+		if (typeof user_id !== 'undefined'){
+			if(isCamOn) next.add(parseInt(user_id,10)); else next.delete(parseInt(user_id,10));
+		}
 		$('.user_item .iccam').each(function(){
 			var uid = parseInt($(this).attr('data-uid'));
 			if(next.has(uid)){
@@ -42,6 +46,7 @@ var publicCam = (function(){
 			data: { get_public_cams: 1 },
 			success: function(resp){
 				if(resp && resp.code === 1){
+					ensureUserCamIcons();
 					syncIcons(resp.cams || []);
 				}
 			}
@@ -49,122 +54,139 @@ var publicCam = (function(){
 	}
 
 	function startMyCam(){
+		if (typeof user_id !== 'undefined'){
+			$('.user_item .iccam[data-uid="'+user_id+'"] .list_cam').removeClass('hidden').closest('.iccam').addClass('cam_on');
+		}
+		isCamOn = true;
 		$.ajax({
 			url: 'system/action/action_cam.php',
 			type: 'post',
 			cache: false,
 			dataType: 'json',
 			data: { start_public_cam: 1 },
-			success: function(){
-				fetchCams();
-			}
+			success: function(){ persistedCam = true; fetchCams(); },
+			error: function(){ persistedCam = false; }
 		});
 	}
 
 	function stopMyCam(){
+		if (typeof user_id !== 'undefined'){
+			$('.user_item .iccam[data-uid="'+user_id+'"] .list_cam').addClass('hidden').closest('.iccam').removeClass('cam_on');
+		}
+		isCamOn = false;
 		$.ajax({
 			url: 'system/action/action_cam.php',
 			type: 'post',
 			cache: false,
 			dataType: 'json',
 			data: { stop_public_cam: 1 },
-			success: function(){
-				fetchCams();
-			}
+			success: function(){ persistedCam = false; fetchCams(); }
 		});
 	}
 
 	function buildEmbedUrl(targetUserId, mode){
 		var base = (window.PUBLIC_CAM_URL && window.PUBLIC_CAM_URL.trim()) || '';
 		if(base){
-			// Support placeholders {uid} {room} {mode} {wss}
 			return base
 				.replace(/\{uid\}/g, String(targetUserId))
 				.replace(/\{room\}/g, String(typeof user_room !== 'undefined' ? user_room : ''))
 				.replace(/\{mode\}/g, String(mode || 'consume'))
 				.replace(/\{wss\}/g, String(mediasoupWss));
 		}
-		// fallback to internal placeholder
 		var q = '?uid=' + encodeURIComponent(targetUserId) + '&mode=' + encodeURIComponent(mode || 'consume') + '&wss=' + encodeURIComponent(mediasoupWss);
 		return 'system/livekit/public_cam_iframe.php' + q;
 	}
 
 	function openViewer(targetUserId, mode){
-		// Reuse existing draggable video popup containers
-		var url = buildEmbedUrl(targetUserId, mode || 'consume');
+		var m = mode || 'consume';
+		var already = $('#wrap_stream iframe').attr('src') || '';
+		if (already && already.indexOf('uid='+encodeURIComponent(targetUserId)) !== -1 && already.indexOf('mode='+m) !== -1){
+			$('#container_stream').removeClass('streamout').fadeIn(200);
+			return;
+		}
+		$('#wrap_stream').empty();
+		$('#wrap_stream_audio').empty();
+		$('#container_stream_audio').hide().addClass('streamout');
+		var url = buildEmbedUrl(targetUserId, m);
 		$('#wrap_stream').html('<iframe src="' + url + '" allow="camera; microphone; autoplay;" frameborder="0" style="width:100%;height:100%"></iframe>');
+		$('#wrap_stream').children(':not(iframe)').remove();
+		try{ var wr = document.getElementById('wrap_stream'); if (wr && !wr.__publicCamObs){ wr.__publicCamObs = new MutationObserver(function(){ $('#wrap_stream').children('video,audio').remove(); }); wr.__publicCamObs.observe(wr, { childList: true }); } }catch(_){ }
 		var $box = $('#container_stream');
-		$('#wrap_stream').css({ width: 560, height: 315 }); // video area 16:9
-		$box.css({ width: 560, height: 355 }); // include header height
-		$box.removeClass('streamout').fadeIn(200);
-		// make draggable + resizable (requires jQuery UI already loaded in app)
+		$('#wrap_stream').css({ width: 560, height: 315 });
+		$box.css({ width: 560, height: 355 }).removeClass('streamout').fadeIn(200);
 		try{
 			$box.draggable({ handle: '.stream_header, #move_video, #container_stream', containment: 'document' });
-			$box.resizable({
-				aspectRatio: 16/9,
-				minWidth: 320,
-				minHeight: 180
-			});
-		}catch(_){ /* jQuery UI should be present */ }
-		vidOn();
+			$box.resizable({ aspectRatio: 16/9, minWidth: 320, minHeight: 180 });
+		}catch(_){ }
 	}
 
-	// Listen to iframe messages to update icons instantly
+	// Update icons from iframe messages, persist only for self once
 	window.addEventListener('message', function(ev){
 		try{
-			var data = ev.data || {};
-			if(data.type === 'publiccam:started' && data.uid){
-				// optimistic update: show cam icon for this uid
-				$('.user_item .iccam[data-uid="'+parseInt(data.uid)+'"] .list_cam').removeClass('hidden').closest('.iccam').addClass('cam_on');
-				// also persist on server so others see it via polling
-				startMyCam();
+			var d = ev.data || {};
+			if(d.type === 'publiccam:started' && d.uid){
+				var uid = parseInt(d.uid,10);
+				$('.user_item .iccam[data-uid="'+uid+'"] .list_cam').removeClass('hidden').closest('.iccam').addClass('cam_on');
+				if (typeof user_id !== 'undefined' && uid === parseInt(user_id,10) && !persistedCam){ startMyCam(); }
 			}
-			if(data.type === 'publiccam:stopped' && data.uid){
-				$('.user_item .iccam[data-uid="'+parseInt(data.uid)+'"] .list_cam').addClass('hidden').closest('.iccam').removeClass('cam_on');
-				stopMyCam();
+			else if(d.type === 'publiccam:stopped' && d.uid){
+				var uid2 = parseInt(d.uid,10);
+				$('.user_item .iccam[data-uid="'+uid2+'"] .list_cam').addClass('hidden').closest('.iccam').removeClass('cam_on');
+				if (typeof user_id !== 'undefined' && uid2 === parseInt(user_id,10) && persistedCam){ stopMyCam(); }
 			}
 		}catch(_){ }
 	}, false);
 
 	function mountUi(){
-		// Ensure icons exist in current DOM
 		ensureUserCamIcons();
-		// Add top-right main webcam toggle button in chat header if not exists
 		if($('#chat_head .head_option.cam_toggle').length === 0){
 			var btn = $('<div class="head_option cam_toggle" title="Webcam"><div class="btable notif_zone"><div class="bcell_mid"><i class="fa fa-video"></i></div></div></div>');
 			btn.on('click', function(){
-				// Simple toggle: start or stop
-				if($(this).hasClass('on')){
-					$(this).removeClass('on');
+				if (toggleBusy) return; toggleBusy = true;
+				var $self = $(this);
+				if($self.hasClass('on')){
+					$self.removeClass('on');
+					if (typeof user_id !== 'undefined'){
+						$('.user_item .iccam[data-uid="'+user_id+'"] .list_cam').addClass('hidden').closest('.iccam').removeClass('cam_on');
+					}
+					isCamOn = false;
 					stopMyCam();
+					$('#wrap_stream').empty();
+					$('#container_stream').fadeOut(200).addClass('streamout');
 				} else {
-					$(this).addClass('on');
+					$self.addClass('on');
+					if (typeof user_id !== 'undefined'){
+						$('.user_item .iccam[data-uid="'+user_id+'"] .list_cam').removeClass('hidden').closest('.iccam').addClass('cam_on');
+					}
+					isCamOn = true;
+					persistedCam = false;
 					startMyCam();
-					// Open producer view to actually publish on the external page
 					if(typeof user_id !== 'undefined'){
-						openViewer(user_id, 'produce');
+						var cur = $('#wrap_stream iframe').attr('src') || '';
+						var want = 'uid='+encodeURIComponent(user_id)+'&mode=produce';
+						if (cur && cur.indexOf(want) !== -1){
+							$('#container_stream').removeClass('streamout').fadeIn(200);
+						} else {
+							$('#wrap_stream').empty();
+							openViewer(user_id, 'produce');
+						}
 					}
 				}
+				setTimeout(function(){ toggleBusy = false; }, 700);
 			});
 			$('#chat_head').append(btn);
 		}
 
-		// Observe user list for changes and ensure icons are present
 		try{
 			var target = document.getElementById('chat_right_data');
 			if(target && !target.__publicCamObserved){
-				var mo = new MutationObserver(function(){
-					ensureUserCamIcons();
-					// re-sync icons with latest state
-					syncIcons(Array.from(cams));
-				});
+				var mo = new MutationObserver(function(){ ensureUserCamIcons(); syncIcons(Array.from(cams)); });
 				mo.observe(target, { childList: true, subtree: true });
 				target.__publicCamObserved = true;
 			}
 		}catch(_){ }
 
-		// Click on user cam icon to open viewer
-		$(document).off('click.publicCam').on('click.publicCam', '.user_item .iccam.cam_on', function(e){
+		$(document).off('click.publicCamView').on('click.publicCamView', '.user_item .iccam.cam_on', function(e){
 			e.stopPropagation();
 			var uid = $(this).attr('data-uid');
 			openViewer(uid, 'consume');
@@ -172,9 +194,7 @@ var publicCam = (function(){
 	}
 
 	function handlePollPayload(payload){
-		if(payload && payload.cams){
-			syncIcons(payload.cams);
-		}
+		if(payload && payload.cams){ ensureUserCamIcons(); syncIcons(payload.cams); }
 	}
 
 	return {
@@ -189,6 +209,6 @@ $(document).ready(function(){
 	if(typeof curPage !== 'undefined' && curPage === 'chat'){
 		publicCam.mountUi();
 		publicCam.fetchCams();
-		setInterval(function(){ if(typeof publicCam !== 'undefined' && curPage === 'chat'){ publicCam.fetchCams(); } }, 5000);
+		setInterval(function(){ if(typeof publicCam !== 'undefined' && curPage === 'chat' && !isCamOn){ publicCam.fetchCams(); } }, 5000);
 	}
 });
