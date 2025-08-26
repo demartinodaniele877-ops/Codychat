@@ -14,7 +14,7 @@ function cams_has_redis(){
 // MySQL fallback helpers (table boom_room_cams)
 function cams_db_ensure(){
 	global $mysqli;
-	$mysqli->query("\n		CREATE TABLE IF NOT EXISTS `boom_room_cams` (\n			`room_id` INT NOT NULL,\n			`user_id` INT NOT NULL,\n			`updated_at` INT NOT NULL,\n			PRIMARY KEY (`room_id`,`user_id`),\n			KEY `updated_at` (`updated_at`)\n		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4\n	");
+	$mysqli->query("\n\t\tCREATE TABLE IF NOT EXISTS `boom_room_cams` (\n\t\t\t`room_id` INT NOT NULL,\n\t\t\t`user_id` INT NOT NULL,\n\t\t\t`updated_at` INT NOT NULL,\n\t\t\tPRIMARY KEY (`room_id`,`user_id`),\n\t\t\tKEY `updated_at` (`updated_at`)\n\t\t) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4\n\t");
 }
 function cams_db_cleanup(){
 	global $mysqli;
@@ -79,6 +79,14 @@ function set_room_cam($roomId, $userId, $isOn){
 }
 
 header('Content-Type: application/json; charset=utf-8');
+
+// Debug: who am I (session/room)
+if(isset($_POST['cam_whoami'])){
+	$uid = isset($data['user_id']) ? (int)$data['user_id'] : 0;
+	$rid = isset($data['user_roomid']) ? (int)$data['user_roomid'] : 0;
+	echo json_encode(['code' => 1, 'uid' => $uid, 'room' => $rid]);
+	die();
+}
 
 // Start broadcasting webcam publicly in current room
 if(isset($_POST['start_public_cam'])){
