@@ -105,6 +105,7 @@ var publicCam = (function(){
 			return;
 		}
 		$('#wrap_stream').empty();
+		$('#wrap_stream').addClass('publiccam-wrap');
 		$('#wrap_stream_audio').empty();
 		$('#container_stream_audio').hide().addClass('streamout');
 		var url = buildEmbedUrl(targetUserId, m);
@@ -112,6 +113,7 @@ var publicCam = (function(){
 		$('#wrap_stream').children(':not(iframe)').remove();
 		try{ var wr = document.getElementById('wrap_stream'); if (wr && !wr.__publicCamObs){ wr.__publicCamObs = new MutationObserver(function(){ $('#wrap_stream').children('video,audio').remove(); }); wr.__publicCamObs.observe(wr, { childList: true }); } }catch(_){ }
 		var $box = $('#container_stream');
+		$box.addClass('publiccam-box');
 		$('#wrap_stream').css({ width: 560, height: 315 });
 		$box.css({ width: 560, height: 355 }).removeClass('streamout').fadeIn(200);
 		try{
