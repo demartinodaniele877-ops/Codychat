@@ -1008,7 +1008,7 @@ setUserRoom();
 <script data-cfasync="false" src="js/function_menu.js<?php echo $bbfv; ?>"></script>
 <script data-cfasync="false" src="js/function_player.js<?php echo $bbfv; ?>"></script>
 <script data-cfasync="false" src="js/function_call.js<?php echo $bbfv; ?>"></script>
-<script data-cfasync="false" src="js/public_cam.js<?php echo $bbfv; ?>"></script>
+<script data-cfasync="false" src="js/webrtc_cam.js<?php echo $bbfv; ?>"></script>
 <?php if(canUploadChat() || canUploadPrivate()){ ?>
 <script data-cfasync="false" src="js/function_paste.js<?php echo $bbfv; ?>"></script>
 <?php } ?>
