@@ -1,6 +1,15 @@
 <?php
 if(!defined('BOOM')){
-	die();
+	$root = dirname(__DIR__);
+	if(file_exists($root . '/config_chat.php')){
+		require $root . '/config_chat.php';
+	}
+	elseif(file_exists($root . '/system/config_chat.php')){
+		require $root . '/system/config_chat.php';
+	}
+	else {
+		die('config_chat.php non trovato.');
+	}
 }
 $room = roomDetails($data['user_roomid']);
 if(usePlayer()){
