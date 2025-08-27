@@ -15,7 +15,9 @@ $room = roomDetails($data['user_roomid']);
 if(usePlayer()){
 	$player = playerDetails($room['room_player_id']);
 }
-setUserRoom();
+if(function_exists('setUserRoom')){
+	setUserRoom();
+}
 ?>
 <div id="chat_head" class="bhead chat_head ">
 	<div class="head_option show_menu menutrig" data-menu="chat_left_menu">
